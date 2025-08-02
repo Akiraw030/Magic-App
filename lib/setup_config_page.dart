@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'image_crop.dart';
 import 'card_reveal_page.dart';
+import 'color_picker.dart';
 
 class BlockData {
   double x;
@@ -44,9 +45,6 @@ class BlockData {
   Rect get rect => Rect.fromLTWH(x, y, width, height);
 }
 
-// ... import statements 如你原本的代碼
-// 已省略 import 部分
-
 class SetupConfigPage extends StatefulWidget {
   @override
   State<SetupConfigPage> createState() => _SetupConfigPageState();
@@ -58,7 +56,9 @@ class _SetupConfigPageState extends State<SetupConfigPage> {
   int selectedImageIndex = 0;
   List<BlockData> blocks = [];
   double defaultSize = 80;
-  double? _selectedHeight;
+  double? _selectedTopHeight;
+  double? _selectedBottomHeight;
+
 
   @override
   void initState() {
@@ -144,7 +144,7 @@ class _SetupConfigPageState extends State<SetupConfigPage> {
         for (int j = i + 1; j < pageBlocks.length; j++) {
           if (pageBlocks[i].rect.overlaps(pageBlocks[j].rect)) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('第 ${page + 1} 頁有重疊區塊')),
+              SnackBar(content: Text('第 ${page + 1} 頁有重疊區塊'), duration: Duration(seconds: 2)),
             );
             return;
           }
@@ -204,8 +204,8 @@ class _SetupConfigPageState extends State<SetupConfigPage> {
     List<BlockData> visibleBlocks = blocks.where((b) => b.imageIndex == selectedImageIndex).toList();
 
     return Scaffold(
-      extendBodyBehindAppBar: true, // 讓 body 延伸到 AppBar 背後
-      backgroundColor: Colors.transparent, // Scaffold 背景透明
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: Text('設定點擊範圍'),
         backgroundColor: Colors.transparent,
@@ -219,7 +219,6 @@ class _SetupConfigPageState extends State<SetupConfigPage> {
               fit: BoxFit.cover,
             ),
           ),
-          // blocks 疊在圖片上
           ...visibleBlocks.asMap().entries.map((entry) {
             int index = blocks.indexOf(entry.value);
             BlockData b = entry.value;
@@ -259,7 +258,6 @@ class _SetupConfigPageState extends State<SetupConfigPage> {
             );
           }).toList(),
 
-          // Bottom 按鈕疊在畫面下方
           Positioned(
             bottom: 0,
             left: 0,
@@ -277,7 +275,51 @@ class _SetupConfigPageState extends State<SetupConfigPage> {
                             selectedImageIndex = selectedImageIndex == 0 ? 1 : 0;
                           });
                         },
-                        child: Text("切換頁面"),
+                        child: Text("換頁"),
+                      ),
+                      ElevatedButton(
+                        onPressed: () async {
+                          final prefs = await SharedPreferences.getInstance();
+                          final savedR = prefs.getInt('mask_color_r') ?? 0;
+                          final savedG = prefs.getInt('mask_color_g') ?? 0;
+                          final savedB = prefs.getInt('mask_color_b') ?? 0;
+                          final savedA = prefs.getInt('mask_color_a') ?? 150;
+
+                          final initialColor = Color.fromARGB(savedA, savedR, savedG, savedB);
+
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ColorPickerPage(
+                                initialColor: Colors.black.withOpacity(0.5),
+                                backgroundImagePath: imagePath,
+                              ),
+                            ),
+                          );
+
+
+                          if (result != null && result is Color) {
+                            await prefs.setInt('mask_color_r', result.red);
+                            await prefs.setInt('mask_color_g', result.green);
+                            await prefs.setInt('mask_color_b', result.blue);
+                            await prefs.setInt('mask_color_a', result.alpha);
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("已儲存遮罩顏色"), duration: Duration(seconds: 1),),
+                            );
+                          }
+                        },
+                        child: Text("遮罩顏色"),
+                      ),
+                      ElevatedButton(
+                        onPressed: () async {
+                          final prefs = await SharedPreferences.getInstance();
+                          await prefs.remove('tap_blocks');
+                          setState(() {
+                            blocks = _generateDefaultBlocks();
+                          });
+                        },
+                        child: Text('回預設'),
                       ),
                       ElevatedButton(
                         onPressed: _saveConfig,
@@ -291,32 +333,51 @@ class _SetupConfigPageState extends State<SetupConfigPage> {
                     children: [
                       ElevatedButton(
                         onPressed: () async {
-                          final prefs = await SharedPreferences.getInstance();
-                          await prefs.remove('tap_blocks');
-                          setState(() {
-                            blocks = _generateDefaultBlocks();
-                          });
+                          final selectedTopHeight = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => SetupCropPage(
+                                title: '設定頂部裁切高度',
+                                storageKey: 'top_overlay_height',
+                                backgroundImageKey: selectedImageIndex == 0 ? 'image1_path' : 'image2_path',
+                              ),
+                            ),
+                          );
+
+                          if (selectedTopHeight != null && selectedTopHeight is double) {
+                            setState(() {
+                              _selectedTopHeight = selectedTopHeight;
+                            });
+
+                            final prefs = await SharedPreferences.getInstance();
+                            await prefs.setDouble('top_overlay_height', selectedTopHeight);
+                          }
                         },
-                        child: Text('回歸預設值'),
+                        child: Text('設定頂部'),
                       ),
                       ElevatedButton(
                         onPressed: () async {
-                          final selectedHeight = await Navigator.push(
+                          final selectedBottomHeight = await Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => const SetupCropPage()),
+                            MaterialPageRoute(
+                              builder: (context) => SetupCropPage(
+                                title: '設定底部遮罩高度',
+                                storageKey: 'bottom_overlay_height',
+                                backgroundImageKey: selectedImageIndex == 0 ? 'image1_path' : 'image2_path',
+                              ),
+                            ),
                           );
 
-                          if (selectedHeight != null && selectedHeight is double) {
+                          if (selectedBottomHeight != null && selectedBottomHeight is double) {
                             setState(() {
-                              _selectedHeight = selectedHeight;
+                              _selectedBottomHeight = selectedBottomHeight;
                             });
 
-                            // ✅ 儲存到 SharedPreferences 以供 CardRevealPage 使用
                             final prefs = await SharedPreferences.getInstance();
-                            await prefs.setDouble('bottom_overlay_height', selectedHeight);
+                            await prefs.setDouble('bottom_overlay_height', selectedBottomHeight);
                           }
                         },
-                        child: Text('設定裁切高度'),
+                        child: Text('設定底部'),
                       ),
                       ElevatedButton(
                         onPressed: () async {
@@ -332,7 +393,7 @@ class _SetupConfigPageState extends State<SetupConfigPage> {
                             });
                           }
                         },
-                        child: Text('重新上傳截圖'),
+                        child: Text('重傳截圖'),
                       ),
                     ],
                   ),

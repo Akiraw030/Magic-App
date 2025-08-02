@@ -36,9 +36,14 @@ class BlockData {
 }
 
 class CardRevealPage extends StatefulWidget {
-  final double? overrideHeight; // ← 新增參數：來自外部的高度（可為 null）
+  final double? overrideHeight;
+  final double? overrideTopHeight;
 
-  const CardRevealPage({Key? key, this.overrideHeight}) : super(key: key);
+  const CardRevealPage({
+    Key? key,
+    this.overrideHeight,
+    this.overrideTopHeight,
+  }) : super(key: key);
 
   @override
   _CardRevealPageState createState() => _CardRevealPageState();
@@ -67,6 +72,7 @@ class _CardRevealPageState extends State<CardRevealPage>
   int currentPage = 0;
 
   double? _bottomOverlayHeight;
+  double? _topOverlayHeight;
 
   @override
   void initState() {
@@ -124,11 +130,19 @@ class _CardRevealPageState extends State<CardRevealPage>
       _image2Path = prefs.getString('image2_path');
       _blocks = list.map((e) => BlockData.fromJson(e)).toList();
 
-      // 這邊：使用 widget.overrideHeight 優先，否則從 prefs 讀取 fallback 值
       _bottomOverlayHeight = widget.overrideHeight ?? prefs.getDouble('bottom_overlay_height') ?? 150.0;
+      _topOverlayHeight = widget.overrideTopHeight ?? prefs.getDouble('top_overlay_height') ?? 0.0;
     });
   }
 
+  Future<Color> _loadMaskColor() async {
+    final prefs = await SharedPreferences.getInstance();
+    final r = prefs.getInt('mask_color_r') ?? 0;
+    final g = prefs.getInt('mask_color_g') ?? 0;
+    final b = prefs.getInt('mask_color_b') ?? 0;
+    final a = prefs.getInt('mask_color_a') ?? 150;
+    return Color.fromARGB(a, r, g, b);
+  }
 
   void _handleTap(TapDownDetails details, int pageIndex) {
     final Offset pos = details.localPosition;
@@ -202,32 +216,44 @@ class _CardRevealPageState extends State<CardRevealPage>
         fit: StackFit.expand,
         children: [
           Image.file(File(_image2Path!), fit: BoxFit.cover),
-          if (envelopeOpened)
-            Center(
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Transform.translate(
-                    offset: Offset(0, 70),
-                    child: Image.asset('assets/envelope/envelope_bottom.png', width: 200),
-                  ),
-                  // 只要信封開啟，先顯示信封上下，卡牌在動畫控制器觸發時才顯示
-                  if (_controller.status != AnimationStatus.dismissed)
-                    SlideTransition(
-                      position: _slideAnimation,
-                      child: Transform.translate(
-                        offset: Offset(0, -10),
-                        child: Image.asset(cardAsset, width: 230),
-                      ),
-                    ),
-                  Transform.translate(
-                    offset: Offset(0, 90),
-                    child: Image.asset('assets/envelope/envelope_top.png', width: 200),
-                  ),
-                ],
-              ),
-            ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCardRevealAnimation() {
+    if (!envelopeOpened || _selectedRank == null) return SizedBox.shrink();
+
+    String cardAsset = "assets/cards/back.png";
+    if (_selectedRank == 'joker') {
+      cardAsset = "assets/cards/joker.png";
+    } else if (_selectedSuit != null && _selectedRank != null) {
+      cardAsset = "assets/cards/${_selectedSuit!}_${_selectedRank!}.png";
+    }
+
+    return IgnorePointer( // 確保動畫不擋點擊
+      child: Center(
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Transform.translate(
+              offset: Offset(0, 70),
+              child: Image.asset('assets/envelope/envelope_bottom.png', width: 200),
+            ),
+            if (_controller.status != AnimationStatus.dismissed)
+              SlideTransition(
+                position: _slideAnimation,
+                child: Transform.translate(
+                  offset: Offset(0, -10),
+                  child: Image.asset(cardAsset, width: 230),
+                ),
+              ),
+            Transform.translate(
+              offset: Offset(0, 90),
+              child: Image.asset('assets/envelope/envelope_top.png', width: 200),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -237,9 +263,8 @@ class _CardRevealPageState extends State<CardRevealPage>
     return Scaffold(
       body: Stack(
         children: [
-          // PageView takes everything except the bottom 400px
           Positioned.fill(
-            bottom: 0, // ⬅ Reserve 400px at bottom for fixed widget
+            bottom: 0,
             child: PageView(
               controller: _pageController,
               physics: const BouncingScrollPhysics(),
@@ -255,18 +280,16 @@ class _CardRevealPageState extends State<CardRevealPage>
             ),
           ),
 
-          // Fixed bottom 400px part
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
             height: _bottomOverlayHeight ?? 150,
             child: IgnorePointer(
-              ignoring: true, // Let touches pass through if needed
+              ignoring: true,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // You can make this semi-transparent, blurred, or fully transparent
                   Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -280,7 +303,6 @@ class _CardRevealPageState extends State<CardRevealPage>
                     ),
                   ),
 
-                  // If you want to show part of the image here too
                   if (currentPage == 0 && _image1Path != null)
                     Image.file(
                       File(_image1Path!),
@@ -293,12 +315,38 @@ class _CardRevealPageState extends State<CardRevealPage>
                       fit: BoxFit.cover,
                       alignment: Alignment.bottomCenter,
                     ),
-
-                  // You can overlay card/envelope visuals here too if needed
                 ],
               ),
             ),
           ),
+          FutureBuilder<Color>(
+            future: _loadMaskColor(),
+            builder: (context, snapshot) {
+              final color = snapshot.data ?? Colors.black.withOpacity(0.6);
+
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  return Stack(
+                    children: [
+                      if (_topOverlayHeight != null)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          top: 0,
+                          height: constraints.maxHeight - _topOverlayHeight!,
+                          child: IgnorePointer(
+                            child: Container(
+                              color: color,
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
+          _buildCardRevealAnimation(),
         ],
       ),
     );
