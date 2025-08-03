@@ -54,6 +54,7 @@ class _CardRevealPageState extends State<CardRevealPage>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<Offset> _slideAnimation;
+  final int _initialPage = 1000;
   bool _revealed = false;
   bool hasTriggeredReveal = false;
 
@@ -77,7 +78,7 @@ class _CardRevealPageState extends State<CardRevealPage>
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(initialPage: 0);
+    _pageController = PageController(initialPage: _initialPage);
     _loadConfig();
     _initAnimation();
     _initShakeDetection();
@@ -265,18 +266,18 @@ class _CardRevealPageState extends State<CardRevealPage>
         children: [
           Positioned.fill(
             bottom: 0,
-            child: PageView(
+            child: PageView.builder(
               controller: _pageController,
               physics: const BouncingScrollPhysics(),
               onPageChanged: (index) {
                 setState(() {
-                  currentPage = index;
+                  currentPage = index % 2;
                 });
               },
-              children: [
-                _buildPage1(),
-                _buildPage2(),
-              ],
+              itemBuilder: (context, index) {
+                final pageIndex = index % 2;
+                return pageIndex == 0 ? _buildPage1() : _buildPage2();
+              },
             ),
           ),
 

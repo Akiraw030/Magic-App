@@ -1,16 +1,22 @@
-# test_v1
+# MR.Poker
 
-A new Flutter project.
+A Flutter based android app project for **MAGIC TRICK** performance.
 
-## Getting Started
+## How to use
 
-This project is a starting point for a Flutter application.
+To run this app on a physical device:
 
-A few resources to get you started if this is your first Flutter project:
+1. Make sure you have [Flutter properly installed](https://docs.flutter.dev/get-started/install).
+2. Fetch dependencies:
+   ```bash
+   flutter pub get
+   flutter build apk
+   ```
+3. Manually install the APK from the build/app/outputs/flutter-apk/app-release.apk file after building.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Material used
+- **Spade suit** [Adobe stock:9626267](https://stock.adobe.com/tw/images/heart-suit/9626267)
+- **Heart suit** [Adobe stock:9626291](https://stock.adobe.com/tw/images/heart-suit/9626291) 
+- **Diamond suit** [Adobe stock:9626402](https://stock.adobe.com/tw/images/heart-suit/9626402) 
+- **Club suit** [Adobe stock:9626418](https://stock.adobe.com/tw/images/heart-suit/9626418)
+- **Envelope** [pngtree:7805370](https://pngtree.com/freepng/brown-envelopes-a4-template-set_7805370.html)
